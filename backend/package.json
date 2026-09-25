@@ -7,14 +7,24 @@
     "db:migrate": "knex migrate:latest",
     "db:rollback": "knex migrate:rollback",
     "db:seed": "knex seed:run",
-    "db:reset": "knex migrate:rollback --all && knex migrate:latest && knex seed:run"
+    "db:reset": "knex migrate:rollback --all && knex migrate:latest && knex seed:run",
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "cors": "^2.8.6",
     "dotenv": "^18.0.4",
+    "express": "^5.2.1",
+    "helmet": "^8.3.0",
     "knex": "^3.3.0",
-    "pg": "^8.23.0"
+    "pg": "^8.23.0",
+    "pino": "^10.3.1",
+    "pino-http": "^11.0.0"
+  },
+  "devDependencies": {
+    "pino-pretty": "^13.1.3"
   }
 }
