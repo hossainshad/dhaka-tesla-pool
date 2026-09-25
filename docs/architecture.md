@@ -10,7 +10,7 @@ flowchart LR
     subgraph API["Backend: Node.js + Express"]
         R["Routes"] --> V["Validation<br/>Zod"]
         V --> S["Services<br/>matching, fares, ride lifecycle"]
-        S --> P["Prisma ORM"]
+        S --> P["Knex<br/>query builder"]
     end
 
     P --> DB[("PostgreSQL")]
@@ -26,7 +26,7 @@ When Nusrat taps **Request ride**:
 2. Auth middleware in Express checks the token and finds out who she is.
 3. Zod validates the body: valid zones, 1 to 3 seats, a known payment method.
 4. The ride service applies the business rules: fare estimate, matching with an open ride, seat capacity.
-5. Prisma runs the database changes inside one transaction, so they all succeed or all fail together.
+5. Knex runs the SQL inside one database transaction, so all changes succeed or all fail together.
 6. PostgreSQL constraints act as the last safety net: invalid data (for example, too many seats) can't be saved even if the code has a bug.
 
 ## Why this shape
