@@ -6,7 +6,8 @@
   "scripts": {
     "db:migrate": "knex migrate:latest",
     "db:rollback": "knex migrate:rollback",
-    "db:seed": "knex seed:run"
+    "db:seed": "knex seed:run",
+    "db:reset": "knex migrate:rollback --all && knex migrate:latest && knex seed:run"
   },
   "keywords": [],
   "author": "",
