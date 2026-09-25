@@ -1,0 +1,24 @@
+# dependencies
+node_modules/
+
+# environment files (secrets must never be committed)
+.env
+.env.*
+!.env.example
+
+# build and test output
+dist/
+build/
+coverage/
+
+# logs
+*.log
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# personal scratch notes
+ai-notes.md
