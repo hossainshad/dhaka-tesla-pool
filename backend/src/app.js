@@ -9,6 +9,7 @@ const healthRoutes = require('./routes/health');
 const { notFound, errorHandler } = require('./errors');
 const zoneRoutes = require('./routes/zones');
 const rideRequestRoutes = require('./routes/rideRequests');
+const driverRoutes = require('./routes/driver');
 
 const app = express();
 
@@ -37,8 +38,10 @@ app.use('/api/health', healthRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/zones', zoneRoutes);
 app.use('/api/ride-requests', rideRequestRoutes);
+app.use('/api/driver', driverRoutes);
 
-app.use(notFound); // no route matched
-app.use(errorHandler); // must be the last middleware
 
+
+app.use(notFound); 
+app.use(errorHandler);
 module.exports = app;
