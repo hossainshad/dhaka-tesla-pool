@@ -1,7 +1,8 @@
 const knex = require('knex');
 const knexConfig = require('../knexfile');
+const config = require('./config');
 
-// One shared connection pool for the whole app.
-const db = knex(knexConfig);
+
+const db = knex({ ...knexConfig, connection: config.databaseUrl });
 
 module.exports = db;
