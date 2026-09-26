@@ -1,15 +1,13 @@
 const db = require('../db');
 const { AppError } = require('../errors');
 const { distanceKm } = require('../domain/geo');
-const { estimateFarePaisa } = require('../domain/fare');
+const { estimateFarePaisa, finalFarePaisa } = require('../domain/fare');
 const { assertRequestTransition } = require('../domain/lifecycle');
 const { recordEvent } = require('./events');
 const { lockRide, tryAutoJoin, removeFromRide } = require('./poolService');
 
 const UNIQUE_VIOLATION = '23505';
 
-// Ride requests joined with their zone names (so the API can say "Banani" instead of "6"),
-// plus a short summary of the ride they are in: status, driver, Tesla and how many passengers share it.
 function requestsWithZones(query = db) {
   return query('ride_requests as rr')
     .join('zones as pz', 'pz.id', 'rr.pickup_zone_id')
@@ -33,8 +31,6 @@ function requestsWithZones(query = db) {
     );
 }
 
-// A passenger sees their OWN fare and status, plus that they share the ride with others.
-// Never the other passengers' names or fares.
 function toPublicRequest(row) {
   return {
     id: row.id,
@@ -61,8 +57,6 @@ function toPublicRequest(row) {
   };
 }
 
-// Passengers only ever see their own requests. Someone else's request looks exactly like
-// one that doesn't exist (404), so ids can't be used to snoop on other people's rides.
 async function getOwnRequest(passengerId, requestId, query = db) {
   const row = await requestsWithZones(query)
     .where({ 'rr.id': requestId, 'rr.passenger_id': passengerId })
@@ -73,7 +67,7 @@ async function getOwnRequest(passengerId, requestId, query = db) {
   return toPublicRequest(row);
 }
 
-async function createRequest(passengerId, { pickupZoneId, dropoffZoneId, seats, paymentMethod }) {
+async function quoteTrip({ pickupZoneId, dropoffZoneId, seats }) {
   const [pickup, dropoff] = await Promise.all([
     db('zones').where({ id: pickupZoneId }).first(),
     db('zones').where({ id: dropoffZoneId }).first(),
@@ -83,9 +77,21 @@ async function createRequest(passengerId, { pickupZoneId, dropoffZoneId, seats, 
   }
 
   const distance = distanceKm(pickup, dropoff);
-  const estimate = estimateFarePaisa(distance, seats);
+  return { distance, estimate: estimateFarePaisa(distance, seats) };
+}
 
-  // TeslaPay must cover the estimate up front. The final fare is never higher (docs/design.md).
+async function getEstimate(input) {
+  const { distance, estimate } = await quoteTrip(input);
+  return {
+    distanceKm: distance,
+    estimatedFarePaisa: estimate,
+    pooledFarePaisa: finalFarePaisa(distance, input.seats, 2),
+  };
+}
+
+async function createRequest(passengerId, { pickupZoneId, dropoffZoneId, seats, paymentMethod }) {
+  const { distance, estimate } = await quoteTrip({ pickupZoneId, dropoffZoneId, seats });
+
   if (paymentMethod === 'WALLET') {
     const passenger = await db('users').where({ id: passengerId }).first();
     if (passenger.wallet_balance_paisa < estimate) {
@@ -115,15 +121,11 @@ async function createRequest(passengerId, { pickupZoneId, dropoffZoneId, seats, 
         toStatus: 'REQUESTED',
       });
 
-      // If a compatible Tesla is already on its way (like Jashim's Bullet), hop in.
-      // Otherwise the request stays REQUESTED until a driver accepts it.
       await tryAutoJoin(trx, request);
 
       return getOwnRequest(passengerId, request.id, trx);
     });
   } catch (err) {
-    // The database allows only one active request per passenger (partial unique index).
-    // This also stops a double-tap on "Request ride" from creating two requests.
     if (err.code === UNIQUE_VIOLATION) {
       throw new AppError(409, 'ACTIVE_REQUEST_EXISTS', 'You already have an active ride request');
     }
@@ -142,7 +144,6 @@ async function listOwnRequests(passengerId) {
 
 async function cancelRequest(passengerId, requestId) {
   return db.transaction(async (trx) => {
-    // Read first (no lock) just to learn which ride the request belongs to.
     const found = await trx('ride_requests')
       .where({ id: requestId, passenger_id: passengerId })
       .first();
@@ -150,11 +151,9 @@ async function cancelRequest(passengerId, requestId) {
       throw new AppError(404, 'NOT_FOUND', 'Ride request not found');
     }
 
-    // Locking rule: the ride first, then the request (see poolService.js).
     const ride = found.ride_id ? await lockRide(trx, found.ride_id) : null;
     const request = await trx('ride_requests').where({ id: requestId }).forUpdate().first();
 
-    // A driver may have matched it into a ride between our first read and the lock.
     if (request.ride_id !== found.ride_id) {
       throw new AppError(409, 'REQUEST_CHANGED', 'This request just changed, please try again');
     }
@@ -182,4 +181,4 @@ async function cancelRequest(passengerId, requestId) {
   });
 }
 
-module.exports = { createRequest, listOwnRequests, getOwnRequest, cancelRequest };
+module.exports = { getEstimate, createRequest, listOwnRequests, getOwnRequest, cancelRequest };

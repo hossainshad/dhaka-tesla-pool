@@ -3,12 +3,16 @@ const { z } = require('zod');
 
 const rideRequestService = require('../services/rideRequestService');
 const { requireAuth, requireRole } = require('../middleware/auth');
-const { validateBody, parseId } = require('../middleware/validate');
+const { checkSchema, validateBody, parseId } = require('../middleware/validate');
 
 const router = express.Router();
 
-// Every route in this file is for logged-in passengers only.
 router.use(requireAuth, requireRole('PASSENGER'));
+
+const differentZones = {
+  message: 'Pickup and destination must be different',
+  path: ['dropoffZoneId'],
+};
 
 const createSchema = z
   .object({
@@ -17,10 +21,20 @@ const createSchema = z
     seats: z.number().int().min(1).max(3).default(1),
     paymentMethod: z.enum(['CASH', 'WALLET']),
   })
-  .refine((data) => data.pickupZoneId !== data.dropoffZoneId, {
-    message: 'Pickup and destination must be different',
-    path: ['dropoffZoneId'],
-  });
+  .refine((data) => data.pickupZoneId !== data.dropoffZoneId, differentZones);
+
+const estimateSchema = z
+  .object({
+    pickupZoneId: z.coerce.number().int().positive(),
+    dropoffZoneId: z.coerce.number().int().positive(),
+    seats: z.coerce.number().int().min(1).max(3).default(1),
+  })
+  .refine((data) => data.pickupZoneId !== data.dropoffZoneId, differentZones);
+
+router.get('/estimate', async (req, res) => {
+  const estimate = await rideRequestService.getEstimate(checkSchema(estimateSchema, req.query));
+  res.json({ estimate });
+});
 
 router.post('/', validateBody(createSchema), async (req, res) => {
   const request = await rideRequestService.createRequest(req.user.id, req.body);
