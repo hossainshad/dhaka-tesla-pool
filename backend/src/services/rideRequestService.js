@@ -8,19 +8,47 @@ const { lockRide, tryAutoJoin, removeFromRide } = require('./poolService');
 
 const UNIQUE_VIOLATION = '23505';
 
-// Ride requests joined with their zone names, so the API can say "Banani" instead of "6".
+// Ride requests joined with their zone names (so the API can say "Banani" instead of "6"),
+// plus a short summary of the ride they are in: status, driver, Tesla and how many passengers share it.
 function requestsWithZones(query = db) {
   return query('ride_requests as rr')
     .join('zones as pz', 'pz.id', 'rr.pickup_zone_id')
     .join('zones as dz', 'dz.id', 'rr.dropoff_zone_id')
-    .select('rr.*', 'pz.name as pickup_zone_name', 'dz.name as dropoff_zone_name');
+    .leftJoin('rides as r', 'r.id', 'rr.ride_id')
+    .leftJoin('users as d', 'd.id', 'r.driver_id')
+    .leftJoin('vehicles as v', 'v.id', 'r.vehicle_id')
+    .select(
+      'rr.*',
+      'pz.name as pickup_zone_name',
+      'dz.name as dropoff_zone_name',
+      'r.status as ride_status',
+      'd.name as driver_name',
+      'v.name as vehicle_name',
+      'v.plate_number as vehicle_plate',
+      query.raw(
+        `(SELECT COUNT(*) FROM ride_requests o
+          WHERE o.ride_id = rr.ride_id AND o.status IN ('MATCHED', 'IN_PROGRESS', 'COMPLETED')
+         ) AS ride_passenger_count`
+      )
+    );
 }
 
+// A passenger sees their OWN fare and status, plus that they share the ride with others.
+// Never the other passengers' names or fares.
 function toPublicRequest(row) {
   return {
     id: row.id,
     status: row.status,
     rideId: row.ride_id,
+    ride: row.ride_id
+      ? {
+          id: row.ride_id,
+          status: row.ride_status,
+          driverName: row.driver_name,
+          vehicle: { name: row.vehicle_name, plateNumber: row.vehicle_plate },
+          passengerCount: Number(row.ride_passenger_count),
+        }
+      : null,
     pickupZone: { id: row.pickup_zone_id, name: row.pickup_zone_name },
     dropoffZone: { id: row.dropoff_zone_id, name: row.dropoff_zone_name },
     seats: row.seats,
