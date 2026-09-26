@@ -1,11 +1,12 @@
 const pino = require('pino');
 
 const isProduction = process.env.NODE_ENV === 'production';
+const isTest = process.env.NODE_ENV === 'test';
 
-// Production: JSON logs (easy for tools to search). Development: pretty, readable logs.
+
 const logger = pino({
-  level: process.env.LOG_LEVEL || 'info',
-  transport: isProduction ? undefined : { target: 'pino-pretty' },
+  level: process.env.LOG_LEVEL || (isTest ? 'silent' : 'info'),
+  transport: isProduction || isTest ? undefined : { target: 'pino-pretty' },
 });
 
 module.exports = logger;

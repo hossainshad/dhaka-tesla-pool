@@ -1,9 +1,11 @@
 // An error we expect and can explain to the user, e.g. "that seat was just taken".
+// `details` is optional extra info, like which form fields are invalid.
 class AppError extends Error {
-  constructor(status, code, message) {
+  constructor(status, code, message, details) {
     super(message);
     this.status = status;
     this.code = code;
+    this.details = details;
   }
 }
 
@@ -15,7 +17,9 @@ function notFound(req, res, next) {
 // Express knows this is the error handler because it takes 4 arguments.
 function errorHandler(err, req, res, next) {
   if (err instanceof AppError) {
-    return res.status(err.status).json({ error: { code: err.code, message: err.message } });
+    return res.status(err.status).json({
+      error: { code: err.code, message: err.message, details: err.details },
+    });
   }
 
   // Errors from express.json(), like broken JSON or a body that's too big.
