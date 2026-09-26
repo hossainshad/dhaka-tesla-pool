@@ -4,9 +4,11 @@ const { distanceKm } = require('../domain/geo');
 const { estimateFarePaisa } = require('../domain/fare');
 const { assertRequestTransition } = require('../domain/lifecycle');
 const { recordEvent } = require('./events');
+const { lockRide, tryAutoJoin, removeFromRide } = require('./poolService');
 
 const UNIQUE_VIOLATION = '23505';
 
+// Ride requests joined with their zone names, so the API can say "Banani" instead of "6".
 function requestsWithZones(query = db) {
   return query('ride_requests as rr')
     .join('zones as pz', 'pz.id', 'rr.pickup_zone_id')
@@ -31,6 +33,8 @@ function toPublicRequest(row) {
   };
 }
 
+// Passengers only ever see their own requests. Someone else's request looks exactly like
+// one that doesn't exist (404), so ids can't be used to snoop on other people's rides.
 async function getOwnRequest(passengerId, requestId, query = db) {
   const row = await requestsWithZones(query)
     .where({ 'rr.id': requestId, 'rr.passenger_id': passengerId })
@@ -53,6 +57,7 @@ async function createRequest(passengerId, { pickupZoneId, dropoffZoneId, seats, 
   const distance = distanceKm(pickup, dropoff);
   const estimate = estimateFarePaisa(distance, seats);
 
+  // TeslaPay must cover the estimate up front. The final fare is never higher (docs/design.md).
   if (paymentMethod === 'WALLET') {
     const passenger = await db('users').where({ id: passengerId }).first();
     if (passenger.wallet_balance_paisa < estimate) {
@@ -82,10 +87,15 @@ async function createRequest(passengerId, { pickupZoneId, dropoffZoneId, seats, 
         toStatus: 'REQUESTED',
       });
 
+      // If a compatible Tesla is already on its way (like Jashim's Bullet), hop in.
+      // Otherwise the request stays REQUESTED until a driver accepts it.
+      await tryAutoJoin(trx, request);
+
       return getOwnRequest(passengerId, request.id, trx);
     });
   } catch (err) {
-    
+    // The database allows only one active request per passenger (partial unique index).
+    // This also stops a double-tap on "Request ride" from creating two requests.
     if (err.code === UNIQUE_VIOLATION) {
       throw new AppError(409, 'ACTIVE_REQUEST_EXISTS', 'You already have an active ride request');
     }
@@ -104,16 +114,28 @@ async function listOwnRequests(passengerId) {
 
 async function cancelRequest(passengerId, requestId) {
   return db.transaction(async (trx) => {
-   
-    const request = await trx('ride_requests')
+    // Read first (no lock) just to learn which ride the request belongs to.
+    const found = await trx('ride_requests')
       .where({ id: requestId, passenger_id: passengerId })
-      .forUpdate()
       .first();
-    if (!request) {
+    if (!found) {
       throw new AppError(404, 'NOT_FOUND', 'Ride request not found');
     }
 
+    // Locking rule: the ride first, then the request (see poolService.js).
+    const ride = found.ride_id ? await lockRide(trx, found.ride_id) : null;
+    const request = await trx('ride_requests').where({ id: requestId }).forUpdate().first();
+
+    // A driver may have matched it into a ride between our first read and the lock.
+    if (request.ride_id !== found.ride_id) {
+      throw new AppError(409, 'REQUEST_CHANGED', 'This request just changed, please try again');
+    }
+
     assertRequestTransition(request.status, 'CANCELLED');
+
+    if (ride) {
+      await removeFromRide(trx, ride, request, passengerId);
+    }
 
     await trx('ride_requests')
       .where({ id: requestId })
