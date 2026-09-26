@@ -1,25 +1,30 @@
 const { AppError } = require('../errors');
 
-// Checks req.body against a Zod schema before the route runs.
-// Invalid data never reaches our business logic.
+function checkSchema(schema, data) {
+  const result = schema.safeParse(data);
+
+  if (!result.success) {
+    const details = result.error.issues.map((issue) => ({
+      field: issue.path.join('.'),
+      message: issue.message,
+    }));
+    throw new AppError(400, 'VALIDATION_ERROR', 'Some fields are invalid', details);
+  }
+
+  return result.data;
+}
+
 function validateBody(schema) {
   return (req, res, next) => {
-    const result = schema.safeParse(req.body);
-
-    if (!result.success) {
-      const details = result.error.issues.map((issue) => ({
-        field: issue.path.join('.'),
-        message: issue.message,
-      }));
-      return next(new AppError(400, 'VALIDATION_ERROR', 'Some fields are invalid', details));
+    try {
+      req.body = checkSchema(schema, req.body);
+      next();
+    } catch (err) {
+      next(err);
     }
-
-    req.body = result.data; // cleaned data: trimmed, lowercased email, etc.
-    next();
   };
 }
-// Turns an id from the URL (like /ride-requests/7) into a number.
-// Anything that isn't a positive whole number can't exist, so we answer 404.
+
 function parseId(value) {
   const id = Number(value);
   if (!Number.isInteger(id) || id <= 0) {
@@ -28,4 +33,4 @@ function parseId(value) {
   return id;
 }
 
-module.exports = { validateBody, parseId };
+module.exports = { checkSchema, validateBody, parseId };
