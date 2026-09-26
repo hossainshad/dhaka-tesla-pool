@@ -158,7 +158,23 @@ Any status change not shown in the diagrams is rejected by the API with `409 Con
 
 **The problem:** Bullet has 1 free seat. Nusrat and Shirin request at almost the same instant, and both see 1 seat available.
 
-**The solution:** a seat is claimed with a single database update that only succeeds if the seat is still free:
+**The solution: three layers of protection.**
+
+**Layer 1: lock the ride, then check.** Joining a ride happens inside a database transaction that first locks the ride's row:
+
+```sql
+SELECT * FROM rides WHERE id = 42 FOR UPDATE;
+```
+
+Only one transaction can hold that lock. The other one waits until the first finishes, then reads the ride again and sees the fresh numbers:
+
+1. Nusrat's transaction locks the ride, sees 1 free seat, takes it, and commits.
+2. Shirin's transaction was waiting. It now reads the ride again: 0 free seats.
+3. Shirin doesn't join. Her request stays `REQUESTED` (waiting) and a driver can still pick her up later.
+
+Checking the matching rule (seats, pickup zone, destinations) while holding the lock means two passengers can never slip in at the same time based on old information.
+
+**Layer 2: a conditional update.** The seat is taken with an update that only works if the seat is still free:
 
 ```sql
 UPDATE rides
@@ -168,20 +184,21 @@ WHERE id = 42
   AND seats_taken + 1 <= capacity;
 ```
 
-PostgreSQL locks the ride's row while one update is running, so the two updates happen one after the other, never at the same time:
+If it changes 0 rows, the join is refused.
 
-1. Nusrat's update runs first: the seat is free, so it succeeds (1 row changed).
-2. Shirin's update waits, then re-checks the condition. The ride is now full, so it changes 0 rows.
-3. The API sees 0 rows changed and keeps Shirin's request `REQUESTED` (waiting), with a message that the last seat was just taken.
+**Layer 3: the database CHECK constraint** (`seats_taken <= capacity`) makes overbooking impossible even if the code had a bug.
 
-**Safety net:** a CHECK constraint (`seats_taken <= capacity`) in the database makes overbooking impossible even if the code had a bug.
+**Proven by a test:** `tests/pooling.test.js` fires Nusrat's and Shirin's requests at the same time, five rounds in a row, and checks that exactly one gets the seat. Removing the lock and the conditional update makes that test fail.
+
+**Locking order rule:** code always locks the ride row *before* its ride requests. When everyone locks in the same order, two transactions can never wait for each other forever (a deadlock).
 
 The same idea protects other races:
 
-- **Two drivers accept the same request:** the update only succeeds `WHERE status = 'REQUESTED'`, so only one can win.
+- **Jashim double-clicks "accept":** the database allows only one active ride per driver, and a request can only be matched `WHERE status = 'REQUESTED'`. One click wins, the other gets `409`.
 - **Double-tapping "Request ride":** a unique index allows only one active request per passenger.
+- **Cancelling while a driver accepts:** the request row is locked, so one action finishes before the other starts, and the second one sees the new status.
 
-**At larger scale:** row locks only become a bottleneck when many people fight over the same ride at once. Handling this for a city-wide system is covered in the scaling bonus section.
+**At larger scale:** a row lock only makes people wait when they fight over the *same* ride, which is a handful of people per ride. The scaling bonus section covers what changes for a city-wide system.
 
 ## 9. Assumptions
 
