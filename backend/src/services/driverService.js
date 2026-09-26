@@ -27,22 +27,24 @@ async function setOnline(driverId, isOnline) {
   return getProfile(driverId);
 }
 
-async function getCurrentRide(driverId, query = db) {
-  const ride = await findActiveRide(driverId, query);
-  if (!ride) {
-    return null;
+// Turns a ride row into what the driver's screen shows: vehicle, seats and passengers.
+// Passengers are shown by first name and destination only (no emails, no other private data).
+// Current rides hide passengers who cancelled; history shows everyone who was ever in the ride.
+async function describeRide(ride, query = db, { includeCancelled = false } = {}) {
+  const passengerQuery = query('ride_requests as rr')
+    .join('users as u', 'u.id', 'rr.passenger_id')
+    .join('zones as dz', 'dz.id', 'rr.dropoff_zone_id')
+    .where('rr.ride_id', ride.id)
+    .orderBy('rr.id')
+    .select('rr.*', 'u.name as passenger_name', 'dz.name as dropoff_zone_name');
+  if (!includeCancelled) {
+    passengerQuery.whereNot('rr.status', 'CANCELLED');
   }
 
   const [pickupZone, vehicle, passengers] = await Promise.all([
     query('zones').where({ id: ride.pickup_zone_id }).first(),
     query('vehicles').where({ id: ride.vehicle_id }).first(),
-    query('ride_requests as rr')
-      .join('users as u', 'u.id', 'rr.passenger_id')
-      .join('zones as dz', 'dz.id', 'rr.dropoff_zone_id')
-      .where('rr.ride_id', ride.id)
-      .whereIn('rr.status', ['MATCHED', 'IN_PROGRESS'])
-      .orderBy('rr.id')
-      .select('rr.*', 'u.name as passenger_name', 'dz.name as dropoff_zone_name'),
+    passengerQuery,
   ]);
 
   return {
@@ -53,6 +55,8 @@ async function getCurrentRide(driverId, query = db) {
     capacity: ride.capacity,
     seatsTaken: ride.seats_taken,
     seatsFree: ride.capacity - ride.seats_taken,
+    createdAt: ride.created_at,
+    updatedAt: ride.updated_at,
     passengers: passengers.map((p) => ({
       requestId: p.id,
       name: p.passenger_name,
@@ -66,6 +70,34 @@ async function getCurrentRide(driverId, query = db) {
   };
 }
 
+// What Jashim sees on his screen right now: his active ride, or null.
+async function getCurrentRide(driverId, query = db) {
+  const ride = await findActiveRide(driverId, query);
+  return ride ? describeRide(ride, query) : null;
+}
+
+// Jashim's finished rides (completed or cancelled), newest first, with what each passenger paid.
+async function getRideHistory(driverId) {
+  const rides = await db('rides')
+    .where({ driver_id: driverId })
+    .whereIn('status', ['COMPLETED', 'CANCELLED'])
+    .orderBy('created_at', 'desc')
+    .orderBy('id', 'desc')
+    .limit(20);
+
+  return Promise.all(
+    rides.map(async (ride) => {
+      const details = await describeRide(ride, db, { includeCancelled: true });
+      const totalFarePaisa = details.passengers
+        .filter((p) => p.status === 'COMPLETED')
+        .reduce((sum, p) => sum + p.finalFarePaisa, 0);
+      return { ...details, totalFarePaisa };
+    })
+  );
+}
+
+// "Relevant requests": everything waiting if Jashim has no ride yet,
+// or only the ones that fit his open ride (same pickup, close destination, enough seats).
 async function listRelevantRequests(driverId) {
   await assertOnline(driverId);
   const ride = await findActiveRide(driverId);
@@ -117,6 +149,7 @@ async function listRelevantRequests(driverId) {
   }));
 }
 
+// Jashim accepts a waiting request: it starts a new ride, or joins his current open ride.
 async function acceptRequest(driverId, requestId) {
   try {
     return await db.transaction(async (trx) => {
@@ -153,6 +186,8 @@ async function acceptRequest(driverId, requestId) {
       return getCurrentRide(driverId, trx);
     });
   } catch (err) {
+    // Two "accept" clicks at the same moment could both try to open a ride.
+    // The database allows one active ride per driver, so the second one lands here.
     if (err.code === UNIQUE_VIOLATION) {
       throw new AppError(409, 'ACTIVE_RIDE_EXISTS', 'You already have an active ride, refresh and try again');
     }
@@ -160,4 +195,12 @@ async function acceptRequest(driverId, requestId) {
   }
 }
 
-module.exports = { setOnline, getCurrentRide, listRelevantRequests, acceptRequest, findActiveRide };
+module.exports = {
+  setOnline,
+  getCurrentRide,
+  getRideHistory,
+  describeRide,
+  listRelevantRequests,
+  acceptRequest,
+  findActiveRide,
+};
