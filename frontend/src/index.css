@@ -142,3 +142,36 @@ button.danger {
 .list li:first-child {
   border-top: none;
 }
+
+.spread {
+  justify-content: space-between;
+}
+
+.right {
+  text-align: right;
+}
+
+.big {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.badge.grey {
+  background: #eef0f2;
+  color: #656d76;
+}
+
+.estimate {
+  background: #f0f7f6;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.row label {
+  flex: 1;
+}
+
+.card h1,
+.card h2 {
+  margin: 0 0 8px;
+}
