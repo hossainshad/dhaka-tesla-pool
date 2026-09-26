@@ -8,7 +8,10 @@ const logger = require('./logger');
 const healthRoutes = require('./routes/health');
 const { notFound, errorHandler } = require('./errors');
 const zoneRoutes = require('./routes/zones');
+const rideRequestRoutes = require('./routes/rideRequests');
+
 const app = express();
+
 
 
 // Log every request. Only method, URL and status: headers contain login tokens and must not be logged.
@@ -33,6 +36,7 @@ app.use(express.json({ limit: '10kb' })); // read JSON bodies, reject huge ones
 app.use('/api/health', healthRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/zones', zoneRoutes);
+app.use('/api/ride-requests', rideRequestRoutes);
 
 app.use(notFound); // no route matched
 app.use(errorHandler); // must be the last middleware
