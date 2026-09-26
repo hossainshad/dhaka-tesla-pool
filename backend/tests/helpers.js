@@ -22,4 +22,10 @@ async function loginAs(name) {
   return res.body.token;
 }
 
-module.exports = { request, app, db, resetDatabase, loginAs, DEMO_PASSWORD };
+// Look up a zone's id by its name, e.g. zoneId('Banani').
+async function zoneId(name) {
+  const zone = await db('zones').where({ name }).first();
+  return zone.id;
+}
+
+module.exports = { request, app, db, resetDatabase, loginAs, zoneId, DEMO_PASSWORD };

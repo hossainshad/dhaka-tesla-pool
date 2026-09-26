@@ -18,5 +18,14 @@ function validateBody(schema) {
     next();
   };
 }
+// Turns an id from the URL (like /ride-requests/7) into a number.
+// Anything that isn't a positive whole number can't exist, so we answer 404.
+function parseId(value) {
+  const id = Number(value);
+  if (!Number.isInteger(id) || id <= 0) {
+    throw new AppError(404, 'NOT_FOUND', 'Not found');
+  }
+  return id;
+}
 
-module.exports = { validateBody };
+module.exports = { validateBody, parseId };
