@@ -4,7 +4,7 @@
 
 ```mermaid
 flowchart LR
-    U["Browser<br/>Nusrat, Rafiq, Shirin, Jashim"] --> FE["Frontend<br/>React + Vite + React Router"]
+    U["Browser<br/>Nusrat, Rafiq, Shirin, Jashim"] --> FE["Frontend<br/>React + Vite + React Router<br/>served by nginx"]
     FE -->|"REST API, JSON<br/>JWT in Authorization header"| R
 
     subgraph API["Backend: Node.js + Express"]
@@ -16,7 +16,7 @@ flowchart LR
     P --> DB[("PostgreSQL")]
 ```
 
-Everything runs with Docker Compose as three containers: `frontend`, `api` and `db`.
+Everything runs with Docker Compose as three containers: `web` (nginx serving the built React app), `api` (Express) and `db` (PostgreSQL). The browser downloads the React app from `web`, then calls the API directly, so the API address baked into the build must be one the browser can reach.
 
 ## How one request flows through the system
 
@@ -39,4 +39,6 @@ When Nusrat taps **Request ride**:
 
 **REST instead of GraphQL.** The data is a few simple resources (users, rides, ride requests) with clear actions like accept, start and complete. REST is simpler to build, easy to test with curl or Postman, and easy to explain. GraphQL helps when many different clients need very different data shapes, which isn't the case here.
 
-**What we left out on purpose.** No Redis, message queues or microservices. One API and one database handle MVP traffic easily, and every extra piece is one more thing to run, debug and explain. The scaling bonus section explains when each of these would become worth adding.
+**Live updates by polling.** The passenger and driver pages ask the API for changes every 5 seconds. It is simple and reliable at MVP size; WebSockets would replace it at scale.
+
+**What we left out on purpose.** No Redis, message queues or microservices. One API and one database handle MVP traffic easily, and every extra piece is one more thing to run, debug and explain. [scaling.md](scaling.md) explains when each of these would become worth adding.

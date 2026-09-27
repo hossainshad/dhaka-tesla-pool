@@ -198,7 +198,7 @@ The same idea protects other races:
 - **Double-tapping "Request ride":** a unique index allows only one active request per passenger.
 - **Cancelling while a driver accepts:** the request row is locked, so one action finishes before the other starts, and the second one sees the new status.
 
-**At larger scale:** a row lock only makes people wait when they fight over the *same* ride, which is a handful of people per ride. The scaling bonus section covers what changes for a city-wide system.
+**At larger scale:** a row lock only makes people wait when they fight over the *same* ride, which is a handful of people per ride. [scaling.md](scaling.md) covers what changes for a city-wide system.
 
 ## 9. Assumptions
 
