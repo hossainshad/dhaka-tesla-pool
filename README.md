@@ -79,10 +79,25 @@ Three actors:
 
 ## Screenshots
 
-| Login | Passenger | Driver |
-|---|---|---|
-| ![Login](docs/screenshots/login.png) | ![Passenger](docs/screenshots/passenger.png) | ![Driver](docs/screenshots/driver.png) |
+**Login**
 
+![Login page](docs/screenshots/login.png)
+
+**Passenger**
+
+| Requesting a ride | Waiting for a Tesla |
+|---|---|
+| ![Passenger dashboard](docs/screenshots/passenger-dashboard.png) | ![Passenger waiting](docs/screenshots/passenger-waiting.png) |
+
+**Driver**
+
+| Waiting requests | Shared ride |
+|---|---|
+| ![Driver request list](docs/screenshots/driver-ride-list.png) | ![Driver shared ride](docs/screenshots/driver-shared-ride.png) |
+
+| Trip started | Ride history |
+|---|---|
+| ![Driver trip started](docs/screenshots/driver-ride-started.png) | ![Driver ride history](docs/screenshots/driver-ride-history.png) |
 ## Architecture
 
 ```mermaid
