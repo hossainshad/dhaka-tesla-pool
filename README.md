@@ -5,31 +5,39 @@ Share a seat. Split the fare. Survive Dhaka traffic.
 A ride-pooling MVP built for the RoBenDevs internship challenge. Passengers request rides between Dhaka zones, and Jashim's three-seat Tesla "Bullet" can carry several passengers on the same trip, as long as their trips are compatible. Each passenger pays their own fare, seats can never be overbooked, and every status change is recorded.
 
 **Demo video:** _add your link here_
-**Live demo:** _added after deployment_
+**Live demo:** https://dhaka-tesla-pool-0xhd.onrender.com (free hosting: the first load can take about a minute if the server was asleep)
 
 ---
 
 ## Contents
 
-- [The problem](#the-problem)
-- [Features](#features)
-- [Screenshots](#screenshots)
-- [Architecture](#architecture)
-- [Database](#database)
-- [Tech stack and why](#tech-stack-and-why)
-- [Project structure](#project-structure)
-- [Getting started](#getting-started)
-- [Environment variables](#environment-variables)
-- [Running tests](#running-tests)
-- [Demo accounts](#demo-accounts)
-- [API overview](#api-overview)
-- [Key decisions and trade-offs](#key-decisions-and-trade-offs)
-- [Concurrency: two people, one seat](#concurrency-two-people-one-seat)
-- [Known limitations](#known-limitations)
-- [Next improvements](#next-improvements)
-- [Scaling bonus: if Oi Tesla goes viral](#scaling-bonus-if-oi-tesla-goes-viral)
-- [Git workflow](#git-workflow)
-- [AI usage](#ai-usage)
+- [Dhaka Tesla Pool](#dhaka-tesla-pool)
+  - [Contents](#contents)
+  - [The problem](#the-problem)
+  - [Features](#features)
+  - [Screenshots](#screenshots)
+  - [Architecture](#architecture)
+  - [Database](#database)
+  - [Tech stack and why](#tech-stack-and-why)
+  - [Project structure](#project-structure)
+  - [Getting started](#getting-started)
+    - [Prerequisites](#prerequisites)
+    - [Run everything with Docker (recommended)](#run-everything-with-docker-recommended)
+    - [Local development](#local-development)
+    - [Useful commands (in `backend/`)](#useful-commands-in-backend)
+    - [Troubleshooting](#troubleshooting)
+  - [Environment variables](#environment-variables)
+  - [Running tests](#running-tests)
+  - [Demo accounts](#demo-accounts)
+  - [API overview](#api-overview)
+  - [Key decisions and trade-offs](#key-decisions-and-trade-offs)
+  - [Concurrency: two people, one seat](#concurrency-two-people-one-seat)
+  - [Deployment](#deployment)
+  - [Known limitations](#known-limitations)
+  - [Next improvements](#next-improvements)
+  - [Scaling bonus: if Oi Tesla goes viral](#scaling-bonus-if-oi-tesla-goes-viral)
+  - [Git workflow](#git-workflow)
+  - [AI usage](#ai-usage)
 
 ---
 
@@ -144,7 +152,7 @@ Full ERD with columns and every constraint: [docs/database.md](docs/database.md)
 | Styling | One plain CSS file | Tailwind, component libraries | Small, simple UI. Nothing to learn or configure. | When a design system is needed |
 | Live updates | Polling every 5 seconds | WebSockets, Server-Sent Events | Simple and reliable at MVP size. | WebSockets at scale (see the scaling doc) |
 | Containers | Docker Compose, nginx for the frontend | Kubernetes | One command runs everything. | Kubernetes or a managed container service at scale |
-| Hosting | _see Deployment, added after deploying_ | | | |
+| Hosting | Render (API as a Docker web service, website as a static site) + Neon (PostgreSQL) | Railway, Fly.io, Vercel + Supabase | Free with no credit card. Render builds the same Dockerfile we use locally. Neon's free database doesn't expire, unlike Render's free Postgres. | A paid plan, to remove the one-minute wake-up after 15 idle minutes |
 
 ## Project structure
 
@@ -270,6 +278,7 @@ All settings live in one `.env` file in the project root, used by Docker Compose
 | `CORS_ORIGIN` | backend | Comma-separated website addresses allowed to call the API |
 | `JWT_SECRET` | backend | Secret used to sign login tokens |
 | `JWT_EXPIRES_IN` | backend | Token lifetime, e.g. `1d` |
+| `TRUST_PROXY` | backend | `true` behind a hosting proxy (like Render), so rate limits use each user's real IP |
 | `WEB_PORT` | web container | Website port on your computer |
 | `VITE_API_URL` | frontend build | Where the browser finds the API |
 
@@ -378,6 +387,32 @@ Code always locks a ride before its requests, so two transactions can never dead
 
 At larger scale: a row lock only slows down people competing for the same ride, which is a handful of people. The scaling doc covers what changes for a whole city.
 
+## Deployment
+
+**Live demo:** https://dhaka-tesla-pool-0xhd.onrender.com
+**API health check:** https://dhaka-tesla-pool-api-t4fe.onrender.com/api/health
+
+Everything runs on free tiers with no credit card:
+
+| Part | Service | Notes |
+|---|---|---|
+| Database | Neon free PostgreSQL (Singapore) | Permanent free tier |
+| API | Render free web service, built from `backend/Dockerfile` | Sleeps after 15 minutes without traffic; the next request takes about a minute to wake it |
+| Website | Render static site, built from `frontend/` | Rewrite rule `/*` → `/index.html` so reloading a page like `/driver` works |
+
+On its first start, the API migrated and seeded the empty Neon database, using the same `scripts/setup-db.js` as Docker Compose. Later restarts keep the data.
+
+**Render settings**
+
+| Service | Settings |
+|---|---|
+| API | Root directory `backend`, Docker. Environment: `DATABASE_URL` (Neon), `JWT_SECRET`, `JWT_EXPIRES_IN`, `CORS_ORIGIN` (the website URL), `TRUST_PROXY=true` |
+| Website | Build command `cd frontend && npm ci && npm run build`, publish directory `frontend/dist`. Environment: `VITE_API_URL` (the API URL), `NODE_VERSION=22` |
+
+Both services deploy the `release/v1.0.0` branch.
+
+If the free hosting ever becomes unavailable, the whole app still runs anywhere with Docker: see [Getting started](#getting-started).
+
 ## Known limitations
 
 - No real maps or routing: fixed zones and grid distances
@@ -390,6 +425,7 @@ At larger scale: a row lock only slows down people competing for the same ride, 
 - The rate limiter keeps its counts in memory, so it resets on restart and isn't shared between several API instances
 - TeslaPay is simulated: no top-ups
 - No admin screen for adding drivers or vehicles
+- The free API sleeps after 15 idle minutes, so the first request after that takes about a minute
 
 ## Next improvements
 
