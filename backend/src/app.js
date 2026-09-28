@@ -14,7 +14,9 @@ const driverRoutes = require('./routes/driver');
 const app = express();
 
 
-
+if (config.trustProxy) {
+  app.set('trust proxy', 1);
+}
 app.use(
   pinoHttp({
     logger,

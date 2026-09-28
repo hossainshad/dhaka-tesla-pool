@@ -13,7 +13,8 @@ const config = {
     .filter(Boolean),
   databaseUrl: isTest ? process.env.TEST_DATABASE_URL : process.env.DATABASE_URL,
   jwtSecret: process.env.JWT_SECRET,
-  jwtExpiresIn: process.env.JWT_EXPIRES_IN || '1d',
+  jwtExpiresIn: process.env.JWT_EXPIRES_IN || '1d',  
+  trustProxy: process.env.TRUST_PROXY === 'true',
 };
 
 for (const [key, envName] of [
@@ -24,5 +25,6 @@ for (const [key, envName] of [
     throw new Error(`${envName} is missing. Copy .env.example to .env and fill it in.`);
   }
 }
+
 
 module.exports = config;
