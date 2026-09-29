@@ -100,19 +100,9 @@ Three actors:
 | ![Driver trip started](docs/screenshots/driver-ride-started.png) | ![Driver ride history](docs/screenshots/driver-ride-history.png) |
 ## Architecture
 
-```mermaid
-flowchart LR
-    U["Browser<br/>Nusrat, Rafiq, Shirin, Jashim"] --> FE["Frontend<br/>React + Vite + React Router<br/>served by nginx"]
-    FE -->|"REST API, JSON<br/>JWT in Authorization header"| R
+![Architecture diagram](docs/diagrams/architecture.png)
 
-    subgraph API["Backend: Node.js + Express"]
-        R["Routes"] --> V["Validation<br/>Zod"]
-        V --> S["Services<br/>matching, fares, ride lifecycle"]
-        S --> P["Knex<br/>query builder"]
-    end
-
-    P --> DB[("PostgreSQL")]
-```
+Editable source: [docs/diagrams/architecture.drawio](docs/diagrams/architecture.drawio)
 
 Everything runs with Docker Compose as three containers: `web` (nginx serving the built React app), `api` (Express) and `db` (PostgreSQL).
 
@@ -122,21 +112,9 @@ More detail: [docs/architecture.md](docs/architecture.md) and [docs/design.md](d
 
 ## Database
 
-```mermaid
-erDiagram
-    USERS ||--o| VEHICLES : owns
-    USERS ||--o{ RIDES : drives
-    USERS ||--o{ RIDE_REQUESTS : books
-    VEHICLES ||--o{ RIDES : "used for"
-    ZONES ||--o{ RIDES : "pickup zone"
-    ZONES ||--o{ RIDE_REQUESTS : pickup
-    ZONES ||--o{ RIDE_REQUESTS : dropoff
-    RIDES |o--o{ RIDE_REQUESTS : "pool members"
-    RIDE_REQUESTS ||--o| PAYMENTS : "paid by"
-    RIDES |o--o{ RIDE_EVENTS : history
-    RIDE_REQUESTS |o--o{ RIDE_EVENTS : history
-    USERS |o--o{ RIDE_EVENTS : "performed by"
-```
+![Database ERD](docs/diagrams/erd.png)
+
+Editable source: [docs/diagrams/erd.drawio](docs/diagrams/erd.drawio)
 
 | Table | Purpose |
 |---|---|
