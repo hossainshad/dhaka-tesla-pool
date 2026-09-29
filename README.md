@@ -100,7 +100,7 @@ Three actors:
 | ![Driver trip started](docs/screenshots/driver-ride-started.png) | ![Driver ride history](docs/screenshots/driver-ride-history.png) |
 ## Architecture
 
-![Architecture diagram](docs/diagrams/architecture.png)
+![Architecture diagram](docs/diagrams/architecture.drawio.png)
 
 Editable source: [docs/diagrams/architecture.drawio](docs/diagrams/architecture.drawio)
 
@@ -112,7 +112,7 @@ More detail: [docs/architecture.md](docs/architecture.md) and [docs/design.md](d
 
 ## Database
 
-![Database ERD](docs/diagrams/erd.png)
+![Database ERD](docs/diagrams/erd.drawio.png)
 
 Editable source: [docs/diagrams/erd.drawio](docs/diagrams/erd.drawio)
 
