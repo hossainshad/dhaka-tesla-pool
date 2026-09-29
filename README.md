@@ -450,13 +450,16 @@ _Edit this section in your own words. It must describe what you actually did._
 **Tools:** Claude (Anthropic) as a step-by-step guide and pair programmer. _Add any other tools you used._
 
 **What I used it for:**
-- Planning the architecture, database schema and the concurrency approach before coding
-- Explaining concepts I hadn't used before (row locks, partial unique indexes, JWT, multi-stage Docker builds)
+- Explaining concepts I hadn't used before (row locks, partial unique indexes, multi-stage Docker builds)
 - Drafting code and tests, which I then ran, read and changed
 - Debugging setup problems: a port clash with another Postgres on my laptop, `.env` not being loaded, middleware in the wrong order, and a dependency installed in the wrong folder
 
-**One suggestion I accepted:** locking the ride row before checking the matching rule and claiming a seat, backed by a conditional update and a CHECK constraint. I accepted it because the test that races Nusrat and Shirin for the last seat passes every time, and fails when the lock is removed.
+**One suggestion I accepted:** storing all money as whole paisa (৳88 is saved as `8800`) instead of decimals. In JavaScript, `0.1 + 0.2` gives `0.30000000000000004`, and small errors like that add up in fares. Whole numbers are always exact, and anyone can still check Nusrat's ৳88 by hand.
 
-**One suggestion I rejected or changed:** the first plan used Prisma as the ORM. When we checked its current state, Prisma 8 was a release candidate without atomic increments, and Prisma 7 needed TypeScript tooling and driver adapters. We switched to Knex, which keeps the important SQL (locks, conditional updates, constraints) visible and easy to explain.
+**One suggestion I changed:** the AI first gave me the architecture diagram and ERD as generated Mermaid code. I wanted diagrams I had built and understood myself, so I switched to draw.io, starting from a generated base: I laid out the containers and tables, made it clear that nginx only serves the React files while the browser calls the API directly and kept the editable `.drawio` files next to the PNGs so they can be updated later. Drawing every box and every crow's-foot line myself is how I checked that I could explain each one.
 
-**How I checked the output:** every step was run and tested on my machine, the tests cover the brief's risky cases, and I can explain each part of the code, schema and design.
+**Things I caught while testing:**
+- My real `JWT_SECRET` had slipped into `.env.example`. I spotted it in `git diff` before committing, removed it and generated a new secret.
+- On the live site, refreshing `/passenger` showed "Not Found". I learned that a single-page app needs the server to return `index.html` for every path, and added a rewrite rule on Render (the same job `try_files` does in nginx).
+- Login and seeding only worked on my laptop because `bcryptjs` had been installed in the project root instead of `backend/`. Moving the root `node_modules` aside exposed it, and I fixed it before it could break the Docker build.
+- I followed my own README on a fresh clone, the same way an evaluator would.
